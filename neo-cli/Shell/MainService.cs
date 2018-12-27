@@ -382,7 +382,7 @@ namespace Neo.Shell
             }
             try
             {
-                Program.Wallet.Unlock(password, DefaultUnlockTime);
+                locker.Unlock(password, DefaultUnlockTime);
             }
             catch (CryptographicException)
             {
@@ -579,7 +579,7 @@ namespace Neo.Shell
             }
             try
             {
-                Program.Wallet.Unlock(password, DefaultUnlockTime);
+                locker.Unlock(password, DefaultUnlockTime);
             }
             catch (CryptographicException)
             {
@@ -729,7 +729,7 @@ namespace Neo.Shell
             }
             try
             {
-                Program.Wallet.Unlock(password, second);
+                locker.Unlock(password, second);
             }
             catch (CryptographicException)
             {
@@ -772,7 +772,7 @@ namespace Neo.Shell
             }
             try
             {
-                Program.Wallet.Unlock(password, DefaultUnlockTime);
+                locker.Unlock(password, DefaultUnlockTime);
             }
             catch (CryptographicException)
             {
