@@ -29,10 +29,12 @@ namespace Neo.Shell
     internal class MainService : ConsoleServiceBase
     {
         private const string PeerStatePath = "peers.dat";
+        private const uint DefaultUnlockTime = 15;
 
         private LevelDBStore store;
         private NeoSystem system;
         private WalletIndexer indexer;
+        private WalletLocker locker;
 
         protected override string Prompt => "neo";
         public override string ServiceName => "NEO-CLI";
@@ -80,6 +82,10 @@ namespace Neo.Shell
                     return OnClaimCommand(args);
                 case "open":
                     return OnOpenCommand(args);
+                case "lock":
+                    return OnLockCommand(args);
+                case "unlock":
+                    return OnUnlockCommand(args);
                 case "rebuild":
                     return OnRebuildCommand(args);
                 case "send":
@@ -305,6 +311,7 @@ namespace Neo.Shell
                 case ".db3":
                     {
                         Program.Wallet = UserWallet.Create(GetIndexer(), path, password);
+                        locker = Program.Wallet.Unlock(password, DefaultUnlockTime);
                         WalletAccount account = Program.Wallet.CreateAccount();
                         Console.WriteLine($"address: {account.Address}");
                         Console.WriteLine($" pubkey: {account.GetKey().PublicKey.EncodePoint(true).ToHexString()}");
@@ -314,7 +321,7 @@ namespace Neo.Shell
                 case ".json":
                     {
                         NEP6Wallet wallet = new NEP6Wallet(GetIndexer(), path);
-                        wallet.Unlock(password);
+                        locker = wallet.Unlock(password, DefaultUnlockTime);
                         WalletAccount account = wallet.CreateAccount();
                         wallet.Save();
                         Program.Wallet = wallet;
@@ -373,7 +380,11 @@ namespace Neo.Shell
                 Console.WriteLine("cancelled");
                 return true;
             }
-            if (!Program.Wallet.VerifyPassword(password))
+            try
+            {
+                Program.Wallet.Unlock(password, DefaultUnlockTime);
+            }
+            catch (CryptographicException)
             {
                 Console.WriteLine("Incorrect password");
                 return true;
@@ -402,6 +413,8 @@ namespace Neo.Shell
                 "Wallet Commands:\n" +
                 "\tcreate wallet <path>\n" +
                 "\topen wallet <path>\n" +
+                "\tlock wallet\n" +
+                "\tunlock wallet <time>\n" +
                 "\tupgrade wallet <path>\n" +
                 "\trebuild index\n" +
                 "\tlist address\n" +
@@ -557,19 +570,21 @@ namespace Neo.Shell
             bool useChangeAddress = (all && args.Length == 4) || (!all && args.Length == 3);
             UInt160 changeAddress = useChangeAddress ? args[args.Length - 1].ToScriptHash() : null;
 
-            if (useChangeAddress)
+
+            string password = ReadPassword("password");
+            if (password.Length == 0)
             {
-                string password = ReadPassword("password");
-                if (password.Length == 0)
-                {
-                    Console.WriteLine("cancelled");
-                    return true;
-                }
-                if (!Program.Wallet.VerifyPassword(password))
-                {
-                    Console.WriteLine("Incorrect password");
-                    return true;
-                }
+                Console.WriteLine("cancelled");
+                return true;
+            }
+            try
+            {
+                Program.Wallet.Unlock(password, DefaultUnlockTime);
+            }
+            catch (CryptographicException)
+            {
+                Console.WriteLine("Incorrect password");
+                return true;
             }
 
             Coins coins = new Coins(Program.Wallet, system);
@@ -659,6 +674,53 @@ namespace Neo.Shell
                 Console.WriteLine($"File does not exist");
                 return true;
             }
+
+            try
+            {
+                Program.Wallet = OpenWallet(GetIndexer(), path);
+            }
+            catch (CryptographicException)
+            {
+                Console.WriteLine($"failed to open file \"{path}\"");
+            }
+            system.RpcServer?.OpenWallet(Program.Wallet);
+            locker = new WalletLocker(Program.Wallet);
+            return true;
+        }
+
+        private bool OnLockCommand(string[] args)
+        {
+            switch (args[1].ToLower())
+            {
+                case "wallet":
+                    return OnLockWalletCommand(args);
+                default:
+                    return base.OnCommand(args);
+            }
+        }
+
+        private bool OnLockWalletCommand(string[] args)
+        {
+            if (NoWallet()) return true;
+            Program.Wallet.Lock();
+            return true;
+        }
+
+        private bool OnUnlockCommand(string[] args)
+        {
+            switch (args[1].ToLower())
+            {
+                case "wallet":
+                    return OnUnlockWalletCommand(args);
+                default:
+                    return base.OnCommand(args);
+            }
+        }
+
+        private bool OnUnlockWalletCommand(string[] args)
+        {
+            uint second = args.Length > 2 ? uint.Parse(args[2]) : DefaultUnlockTime;
+            if (NoWallet()) return true;
             string password = ReadPassword("password");
             if (password.Length == 0)
             {
@@ -667,13 +729,13 @@ namespace Neo.Shell
             }
             try
             {
-                Program.Wallet = OpenWallet(GetIndexer(), path, password);
+                Program.Wallet.Unlock(password, second);
             }
             catch (CryptographicException)
             {
-                Console.WriteLine($"failed to open file \"{path}\"");
+                Console.WriteLine("Incorrect password");
+                return true;
             }
-            system.RpcServer?.OpenWallet(Program.Wallet);
             return true;
         }
 
@@ -708,7 +770,11 @@ namespace Neo.Shell
                 Console.WriteLine("cancelled");
                 return true;
             }
-            if (!Program.Wallet.VerifyPassword(password))
+            try
+            {
+                Program.Wallet.Unlock(password, DefaultUnlockTime);
+            }
+            catch (CryptographicException)
             {
                 Console.WriteLine("Incorrect password");
                 return true;
@@ -892,7 +958,7 @@ namespace Neo.Shell
             {
                 try
                 {
-                    Program.Wallet = OpenWallet(GetIndexer(), Settings.Default.UnlockWallet.Path, Settings.Default.UnlockWallet.Password);
+                    Program.Wallet = OpenWallet(GetIndexer(), Settings.Default.UnlockWallet.Path);
                 }
                 catch (CryptographicException)
                 {
@@ -1021,22 +1087,20 @@ namespace Neo.Shell
                 return true;
             }
             string path_new = Path.ChangeExtension(path, ".json");
-            NEP6Wallet.Migrate(GetIndexer(), path_new, path, password).Save();
+            NEP6Wallet.Migrate(GetIndexer(), path_new, path, password, DefaultUnlockTime).Save();
             Console.WriteLine($"Wallet file upgrade complete. New wallet file has been auto-saved at: {path_new}");
             return true;
         }
 
-        private static Wallet OpenWallet(WalletIndexer indexer, string path, string password)
+        private static Wallet OpenWallet(WalletIndexer indexer, string path)
         {
             if (Path.GetExtension(path) == ".db3")
             {
-                return UserWallet.Open(indexer, path, password);
+                return UserWallet.Open(indexer, path);
             }
             else
             {
-                NEP6Wallet nep6wallet = new NEP6Wallet(indexer, path);
-                nep6wallet.Unlock(password);
-                return nep6wallet;
+                return new NEP6Wallet(indexer, path);
             }
         }
     }
