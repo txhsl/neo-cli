@@ -413,7 +413,7 @@ namespace Neo.Shell
                 "\tcreate wallet <path>\n" +
                 "\topen wallet <path>\n" +
                 "\tlock wallet\n" +
-                "\tunlock wallet <time>\n" +
+                "\tunlock wallet [time]\n" +
                 "\tupgrade wallet <path>\n" +
                 "\trebuild index\n" +
                 "\tlist address\n" +
