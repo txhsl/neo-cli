@@ -34,7 +34,6 @@ namespace Neo.Shell
         private LevelDBStore store;
         private NeoSystem system;
         private WalletIndexer indexer;
-        private WalletLocker locker;
 
         protected override string Prompt => "neo";
         public override string ServiceName => "NEO-CLI";
@@ -311,7 +310,7 @@ namespace Neo.Shell
                 case ".db3":
                     {
                         Program.Wallet = UserWallet.Create(GetIndexer(), path, password);
-                        locker = Program.Wallet.Unlock(password, DefaultUnlockTime);
+                        WalletLocker.Unlock(Program.Wallet, password, DefaultUnlockTime);
                         WalletAccount account = Program.Wallet.CreateAccount();
                         Console.WriteLine($"address: {account.Address}");
                         Console.WriteLine($" pubkey: {account.GetKey().PublicKey.EncodePoint(true).ToHexString()}");
@@ -321,7 +320,7 @@ namespace Neo.Shell
                 case ".json":
                     {
                         NEP6Wallet wallet = new NEP6Wallet(GetIndexer(), path);
-                        locker = wallet.Unlock(password, DefaultUnlockTime);
+                        WalletLocker.Unlock(wallet, password, DefaultUnlockTime);
                         WalletAccount account = wallet.CreateAccount();
                         wallet.Save();
                         Program.Wallet = wallet;
@@ -382,7 +381,7 @@ namespace Neo.Shell
             }
             try
             {
-                locker.Unlock(password, DefaultUnlockTime);
+                WalletLocker.Unlock(Program.Wallet, password, DefaultUnlockTime);
             }
             catch (CryptographicException)
             {
@@ -579,7 +578,7 @@ namespace Neo.Shell
             }
             try
             {
-                locker.Unlock(password, DefaultUnlockTime);
+                WalletLocker.Unlock(Program.Wallet, password, DefaultUnlockTime);
             }
             catch (CryptographicException)
             {
@@ -684,7 +683,6 @@ namespace Neo.Shell
                 Console.WriteLine($"failed to open file \"{path}\"");
             }
             system.RpcServer?.OpenWallet(Program.Wallet);
-            locker = new WalletLocker(Program.Wallet);
             return true;
         }
 
@@ -702,7 +700,7 @@ namespace Neo.Shell
         private bool OnLockWalletCommand(string[] args)
         {
             if (NoWallet()) return true;
-            Program.Wallet.Lock();
+            WalletLocker.Lock();
             return true;
         }
 
@@ -729,7 +727,7 @@ namespace Neo.Shell
             }
             try
             {
-                locker.Unlock(password, second);
+                WalletLocker.Unlock(Program.Wallet, password, second);
             }
             catch (CryptographicException)
             {
@@ -772,7 +770,7 @@ namespace Neo.Shell
             }
             try
             {
-                locker.Unlock(password, DefaultUnlockTime);
+                WalletLocker.Unlock(Program.Wallet, password, DefaultUnlockTime);
             }
             catch (CryptographicException)
             {
