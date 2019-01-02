@@ -52,25 +52,14 @@ namespace Neo.Shell
             return true;
         }
 
-        private bool UnlockWallet(uint second)
+        private bool WalletLocked()
         {
-            if (!WalletLocker.Locked()) return true;
-            string password = ReadPassword("password");
-            if (password.Length == 0)
+            if (WalletLocker.Locked())
             {
-                Console.WriteLine("cancelled");
-                return false;
-            }
-            try
-            {
-                WalletLocker.Unlock(Program.Wallet, password, second);
+                Console.WriteLine("You have to unlock the wallet first.");
                 return true;
             }
-            catch (CryptographicException)
-            {
-                Console.WriteLine("Incorrect password");
-                return false;
-            }
+            return false;
         }
 
         protected override bool OnCommand(string[] args)
@@ -216,7 +205,7 @@ namespace Neo.Shell
                 Console.WriteLine("You must input JSON object pending signature data.");
                 return true;
             }
-            if (!UnlockWallet(DefaultUnlockTime)) return true;
+            if (WalletLocked()) return true;
             try
             {
                 ContractParametersContext context = ContractParametersContext.Parse(jsonObjectToSign);
@@ -269,7 +258,7 @@ namespace Neo.Shell
         private bool OnCreateAddressCommand(string[] args)
         {
             if (NoWallet()) return true;
-            if (!UnlockWallet(DefaultUnlockTime)) return true;
+            if (WalletLocked()) return true;
             if (args.Length > 3)
             {
                 Console.WriteLine("error");
@@ -395,7 +384,7 @@ namespace Neo.Shell
                 scriptHash = args[2].ToScriptHash();
                 path = args[3];
             }
-            if (!UnlockWallet(DefaultUnlockTime)) return true;
+            if (WalletLocked()) return true;
             IEnumerable<KeyPair> keys;
             if (scriptHash == null)
                 keys = Program.Wallet.GetAccounts().Where(p => p.HasKey).Select(p => p.GetKey());
@@ -495,7 +484,7 @@ namespace Neo.Shell
                 Console.WriteLine("Error. Invalid parameters.");
                 return true;
             }
-            if (!UnlockWallet(DefaultUnlockTime)) return true;
+            if (WalletLocked()) return true;
             ECPoint[] publicKeys = args.Skip(3).Select(p => ECPoint.Parse(p, ECCurve.Secp256r1)).ToArray();
 
             Contract multiSignContract = Contract.CreateMultiSigContract(m, publicKeys);
@@ -517,7 +506,7 @@ namespace Neo.Shell
                 Console.WriteLine("error");
                 return true;
             }
-            if (!UnlockWallet(DefaultUnlockTime)) return true;
+            if (WalletLocked()) return true;
             byte[] prikey = null;
             try
             {
@@ -578,7 +567,7 @@ namespace Neo.Shell
             bool useChangeAddress = (all && args.Length == 4) || (!all && args.Length == 3);
             UInt160 changeAddress = useChangeAddress ? args[args.Length - 1].ToScriptHash() : null;
 
-            if (!UnlockWallet(DefaultUnlockTime)) return true;
+            if (WalletLocked()) return true;
             Coins coins = new Coins(Program.Wallet, system);
             ClaimTransaction[] txs = all
                 ? coins.ClaimAll(changeAddress)
@@ -604,7 +593,7 @@ namespace Neo.Shell
         {
             if (NoWallet()) return true;
 
-            if (!UnlockWallet(DefaultUnlockTime)) return true;
+            if (WalletLocked()) return true;
 
             foreach (KeyPair key in Program.Wallet.GetAccounts().Where(p => p.HasKey).Select(p => p.GetKey()))
             {
@@ -715,7 +704,21 @@ namespace Neo.Shell
         {
             uint second = args.Length > 2 ? uint.Parse(args[2]) : DefaultUnlockTime;
             if (NoWallet()) return true;
-            UnlockWallet(second);
+
+            string password = ReadPassword("password");
+            if (password.Length == 0)
+            {
+                Console.WriteLine("cancelled");
+                return true;
+            }
+            try
+            {
+                WalletLocker.Unlock(Program.Wallet, password, second);
+            }
+            catch (CryptographicException)
+            {
+                Console.WriteLine("Incorrect password");
+            }
             return true;
         }
 
@@ -744,7 +747,7 @@ namespace Neo.Shell
                 return true;
             }
             if (NoWallet()) return true;
-            if (!UnlockWallet(DefaultUnlockTime)) return true;
+            if (WalletLocked()) return true;
             UIntBase assetId;
             switch (args[1].ToLower())
             {
