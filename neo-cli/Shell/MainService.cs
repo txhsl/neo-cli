@@ -610,6 +610,23 @@ namespace Neo.Shell
         private bool OnListKeyCommand(string[] args)
         {
             if (NoWallet()) return true;
+
+            string password = ReadPassword("password");
+            if (password.Length == 0)
+            {
+                Console.WriteLine("cancelled");
+                return true;
+            }
+            try
+            {
+                WalletLocker.Unlock(Program.Wallet, password, DefaultUnlockTime);
+            }
+            catch (CryptographicException)
+            {
+                Console.WriteLine("Incorrect password");
+                return true;
+            }
+
             foreach (KeyPair key in Program.Wallet.GetAccounts().Where(p => p.HasKey).Select(p => p.GetKey()))
             {
                 Console.WriteLine(key.PublicKey);
