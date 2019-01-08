@@ -1063,6 +1063,7 @@ namespace Neo.Shell
 
         private static Wallet OpenWallet(WalletIndexer indexer, string path)
         {
+            WalletLocker.Reset();
             if (Path.GetExtension(path) == ".db3")
             {
                 return UserWallet.Open(indexer, path);
